@@ -182,6 +182,15 @@ class ReviewWarden_Features {
 	}
 
 	/**
+	 * Daily counter key for this visitor.
+	 *
+	 * @return string
+	 */
+	private static function limit_key() {
+		return 'reviewwarden_day_' . self::ip_hash();
+	}
+
+	/**
 	 * New pass.
 	 *
 	 * @return string
@@ -344,13 +353,10 @@ class ReviewWarden_Features {
 		}
 		$limit = (int) ReviewWarden_Settings::get( 'per_day' );
 		if ( $limit > 0 ) {
-			$key   = 'reviewwarden_ip_' . self::ip_hash();
-			$count = (int) get_transient( $key );
-			if ( $count >= $limit ) {
+			if ( (int) get_transient( self::limit_key() ) >= $limit ) {
 				self::record( 'limited', $post_id, 'per_day' );
 				return new WP_Error( 'reviewwarden_limit', __( 'Thank you! You have already sent several reviews today. Please try again tomorrow.', 'reviewwarden' ), 429 );
 			}
-			set_transient( $key, $count + 1, DAY_IN_SECONDS );
 		}
 		$email    = isset( $data['comment_author_email'] ) ? (string) $data['comment_author_email'] : '';
 		$user_id  = isset( $data['user_id'] ) ? (int) $data['user_id'] : 0;
@@ -399,6 +405,8 @@ class ReviewWarden_Features {
 		if ( null === self::$pending || 'spam' === $approved ) {
 			return;
 		}
+		$key = self::limit_key();
+		set_transient( $key, (int) get_transient( $key ) + 1, DAY_IN_SECONDS );
 		$rating = (int) get_comment_meta( $comment_id, 'rating', true );
 		if ( ! $rating && isset( $_POST['rating'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- read only, saved by WooCommerce.
 			$rating = min( 5, absint( $_POST['rating'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- read only, saved by WooCommerce.
